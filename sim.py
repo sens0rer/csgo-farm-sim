@@ -203,7 +203,8 @@ class Farm(Structure, DropManager):
                  acc_num=100,
                  start_date=dt.date(2021, 6, 9),
                  start_bal=0,
-                 drift: int = 0):
+                 drift: int = 0,
+                 steam_to_irl=0.7):
         Structure.__init__(self,
                            acc_num,
                            start_date,
@@ -217,6 +218,9 @@ class Farm(Structure, DropManager):
         # Ideal farm would run every 7 days. Real farm drifts a little
         # bit. drift lets you set by how many hours
         self.drift = drift
+        # This coefficient lets you set how much cash you get for
+        # 1 USD on steam
+        self.steam_to_irl = steam_to_irl
 
     def _price_for_date(self, price_data, date, hour=0):
         datetime = dt.datetime.combine(date, dt.time(hour, 0, 0))
@@ -244,7 +248,7 @@ class Farm(Structure, DropManager):
         price_data = self._price_for_date(
             self.price_data, self.date, self.hour)
         for case in drops:
-            self.balance += price_data[case]
+            self.balance += price_data[case] / self.steam_to_irl
 
         # Update date
         self.date += dt.timedelta(days=7)
@@ -265,38 +269,67 @@ class Farm(Structure, DropManager):
         return stats
 
 
-def transform(stats,
-              mode=0,
-              steam_irl=0.7,
-              acc_pr=15,
-              acc_num=100,
-              drift=0):
+def get_deep_stats(stats,
+                   steam_irl=0.7,
+                   acc_pr=15,
+                   acc_num=100,
+                   drift=0):
     """
-    Modes:
-    0 - leave as is(balance)
-    1 - this run's profit
-    2 - average monthly profit
-    3 - average time till you get your money back(months)
     Coefficients:
-    steam_irl - how much 1 steam $ is worth irl
     acc_pr - account price in USD
     acc_num - amount of accounts(same as your farm)
     drift - Ideal farm would run every 7 days. Real farm drifts a little
             bit. drift lets you set by how many hours(same as your farm)
     """
+    stats_new = stats.copy()
+
+    stats_new["Profit"] = []
+    for i, balance in enumerate(stats_new["Balance"]):
+        last_balance = balance
+        if i == 0:
+            stats_new["Profit"].append(balance)
+        else:
+            stats_new["Profit"].append(balance - last_balance)
+
+    stats_new["Monthly profit"] = []
+    for profit in stats_new["Profit"]:
+        stats_new["Monthly profit"].append(profit*30 / (7+drift/24))
+
+    stats_new["Time till moneyback"] = []
+    for profit in stats_new["Monthly profit"]:
+        stats_new["Time till moneyback"].append(acc_num*acc_pr/profit)
+
+    stats_new["Balance normalized"] = []
+    for value in stats_new["Balance"]:
+        stats_new["Balance normalized"].append(value/acc_num)
+
+    stats_new["Profit normalized"] = []
+    for value in stats_new["Profit"]:
+        stats_new["Profit normalized"].append(value/acc_num)
+
+    stats_new["Monthly profit normalized"] = []
+    for value in stats_new["Monthly profit"]:
+        stats_new["Monthly profit normalized"].append(value/acc_num)
+
+    stats_new["Time till moneyback normalized"] = []
+    for value in stats_new["Time till moneyback"]:
+        stats_new["Time till moneyback normalized"].append(
+            value/acc_num)
+
+    return stats_new
 
 
 def plot(stats):
     if type(stats) == dict:
-        dates = stats["Date"]
-        balances = np.array(stats["Balance"])
+        x = stats["Date"]
+        y = np.array(stats["Balance"])
     else:
-        dates = stats[0]["Date"]
-        balances = [stats[i]["Balance"] for i in range(len(stats))]
-        balances = np.array(balances)
+        x = stats[0]["Date"]
+        y = [stats[i]["Balance"] for i in range(len(stats))]
+        y = np.array(y)
 
     fig, ax = plt.subplots()
-    ax.plot_date(dates, balances.T, marker='', linestyle='-')
+    ax.plot_date(x, y.T, marker='', linestyle='-')
     fig.autofmt_xdate()
     plt.show()
 
