@@ -4,6 +4,8 @@ from time import sleep
 import pandas as pd
 import random
 from progressbar import print_progress_bar
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Constants
 _min_date = dt.date(2020, 1, 1)
@@ -148,6 +150,7 @@ class DropManager():
         self.date = date
         self._active_pool = []
         self._rare_pool = []
+        # Initialize drop pools
         for case in self._drop_pool.keys():
             removal_date = self._drop_pool.get(case)
             release_date = self._release_dates.get(case, _min_date)
@@ -158,6 +161,7 @@ class DropManager():
                 self._rare_pool.append(case)
 
     def _update_drop_pool(self, date):
+        # Check if it's time to update the drop pools
         run_update = False
         if self._release_date_list != []:
             first_release = min(self._release_date_list)
@@ -169,6 +173,7 @@ class DropManager():
                         break
                     first_release = min(self._release_date_list)
 
+        # The update part
         if run_update:
             self._active_pool = []
             self._rare_pool = []
@@ -249,10 +254,58 @@ class Farm(Structure, DropManager):
         else:
             self.hour += self.drift
 
+    def run_til_date(self, date):
+        stats = {"Date": [],
+                 "Balance": []
+                 }
+        while self.date <= date:
+            stats["Date"].append(self.date)
+            self.run_once()
+            stats["Balance"].append(self.balance)
+        return stats
+
+
+def transform(stats,
+              mode=0,
+              steam_irl=0.7,
+              acc_pr=15,
+              acc_num=100,
+              drift=0):
+    """
+    Modes:
+    0 - leave as is(balance)
+    1 - this run's profit
+    2 - average monthly profit
+    3 - average time till you get your money back(months)
+    Coefficients:
+    steam_irl - how much 1 steam $ is worth irl
+    acc_pr - account price in USD
+    acc_num - amount of accounts(same as your farm)
+    drift - Ideal farm would run every 7 days. Real farm drifts a little
+            bit. drift lets you set by how many hours(same as your farm)
+    """
+
+
+def plot(stats):
+    if type(stats) == dict:
+        dates = stats["Date"]
+        balances = np.array(stats["Balance"])
+    else:
+        dates = stats[0]["Date"]
+        balances = [stats[i]["Balance"] for i in range(len(stats))]
+        balances = np.array(balances)
+
+    fig, ax = plt.subplots()
+    ax.plot_date(dates, balances.T, marker='', linestyle='-')
+    fig.autofmt_xdate()
+    plt.show()
+
 
 if __name__ == "__main__":
     price_data = get_price_data(False)
-    for i in range(10):
-        farm1 = Farm(price_data)
-        farm1.run_once()
-        print(farm1.balance)
+    stats = []
+    for i in range(5):
+        farm1 = Farm(price_data, 1000)
+        stats.append(farm1.run_til_date(dt.date(2022, 10, 1)))
+        plot(stats[i])
+    plot(stats)
