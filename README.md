@@ -4,5 +4,3 @@ Lets you simulate a system that determines case drops in CS:GO and analyze the s
 -pricehistory.py is fully functional
 
 -sim.py is [UNDER CONSTRUCTION]
-
--for the love of god, do not try to use simold.py, wait for sim to be done
