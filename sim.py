@@ -3,6 +3,69 @@ import pricehistory
 from time import sleep
 import pandas as pd
 import random
+from progressbar import print_progress_bar
+
+
+def get_price_data(is_new: bool = False):
+    """
+    Get Steam price history for each item.
+    If is_new == True, gets data from Steam servers and writes them
+    to files.
+    If is_new == False, loads data from previously written files.
+    """
+    price_data = {}
+    dateformat = "%Y-%m-%d %H:%M:%S"
+    case_list = list(_drop_pool.keys())
+    l = len(case_list)
+    for i, case in enumerate(case_list):
+        if is_new:
+            df = pricehistory.get_df_for_item(case)
+            sleep(15)
+            price_data[case] = df.to_dict()
+            pricehistory.write_df_to_file(df, case)
+            print_progress_bar(i + 1, l,
+                               prefix='Acquiring price data from Steam:\n',
+                               suffix='Complete', length=50)
+
+            # Convert indexed dicts to lists
+            price_data[case]['Amount sold'] = list(
+                price_data[case]['Amount sold'].values()
+            )
+            price_data[case]['Date'] = list(
+                price_data[case]['Date'].values()
+            )
+            price_data[case]['Price(USD)'] = list(
+                price_data[case]['Price(USD)'].values()
+            )
+            # Convert strings to floats
+            price_data[case]['Price(USD)'] = [float(
+                x.replace(",", ".")
+            ) for x in price_data[case]['Price(USD)']]
+            continue
+
+        price_data[case] = pricehistory.read_file_to_df(case).to_dict()
+        # Remove dumb artifact
+        price_data[case].pop("Unnamed: 0")
+        # Convert indexed dicts to lists
+        price_data[case]['Amount sold'] = list(
+            price_data[case]['Amount sold'].values()
+        )
+        price_data[case]['Date'] = list(
+            price_data[case]['Date'].values()
+        )
+        price_data[case]['Price(USD)'] = list(
+            price_data[case]['Price(USD)'].values()
+        )
+        # Convert strings to datetimes
+        price_data[case]['Date'] = [
+            dt.datetime.strptime(x, dateformat) for x
+            in price_data[case]['Date']]
+        # Convert strings to floats
+        price_data[case]['Price(USD)'] = [float(
+            x.replace(",", ".")
+        ) for x in price_data[case]['Price(USD)']]
+    return price_data
+
 
 # Constants
 _min_date = dt.date(2020, 1, 1)
@@ -45,26 +108,8 @@ _drop_pool = {'Recoil Case':  _max_date,
               'Sticker Capsule 2': _min_date,
               'Community Sticker Capsule 1': _min_date
               }
-
-
-def get_price_data(is_new: bool):
-    """
-    Get Steam price history for each item.
-    If is_new == True, gets data from Steam servers and writes them
-    to files.
-    If is_new == False, loads data from previously written files.
-    """
-    price_data = {}
-    for case in list(_drop_pool.keys()):
-        if is_new:
-            df = pricehistory.get_df_for_item(case)
-            sleep(15)
-            price_data[case] = df.to_dict()
-            pricehistory.write_df_to_file(df, case)
-            continue
-
-        price_data[case] = pricehistory.read_file_to_df(case).to_dict()
-    return price_data
+_newData = False
+_price_data = get_price_data(_newData)
 
 
 class DateError(Exception):
@@ -73,7 +118,11 @@ class DateError(Exception):
     """
 
 
-class FarmStructure():
+class Structure():
+    """
+    Defines farm settings
+    """
+
     def __init__(self,
                  acc_num=100,
                  start_date=dt.date(2021, 6, 9),
@@ -91,6 +140,10 @@ Date entered: {start_date}"""
 
 
 class DropManager():
+    """
+    Manages drop pools and drop events
+    """
+
     def __init__(self, drop_pool, release_dates, date):
         self._drop_pool = drop_pool
         self._release_dates = release_dates
@@ -131,7 +184,7 @@ class DropManager():
                 if date >= release_date:
                     self._rare_pool.append(case)
 
-    def _dropEvent(self):
+    def _drop_event(self):
         if random.random() < 0.01:
             return self._rare_pool[random.randint(0,
                                                   len(self._rare_pool) - 1)
@@ -142,6 +195,65 @@ class DropManager():
                                      ]
 
 
+class Farm(Structure, DropManager):
+    def __init__(self,
+                 acc_num=100,
+                 start_date=dt.date(2021, 6, 9),
+                 start_bal=0,
+                 drift: int = 0,
+                 ):
+        Structure.__init__(self,
+                           acc_num,
+                           start_date,
+                           start_bal)
+        DropManager.__init__(self,
+                             _drop_pool,
+                             _release_dates,
+                             start_date)
+        self.hour = 0
+        # Ideal farm would run every 7 days. Real farm drifts a little
+        # bit. drift lets you set by how many hours
+        self.drift = drift
+
+    def _price_for_date(self, price_data, date, hour=0):
+        datetime = dt.datetime.combine(date, dt.time(hour, 0, 0))
+        lower = dt.datetime.combine(date, dt.time(1, 0, 0))
+        if datetime < lower:
+            datetime = lower
+        else:
+            datetime = lower + dt.timedelta(days=1)
+
+        dated_price_data = {}
+        for case in price_data.keys():
+            if case in self._active_pool or case in self._rare_pool:
+                date_index = price_data[case]["Date"].index(datetime)
+                dated_price_data[case] = price_data[case]["Price(USD)"][date_index]
+
+        return dated_price_data
+
+    def run_once(self):
+        # Get drops and update balance
+        drops = []
+        self._update_drop_pool(self.date)
+        for i in range(self.acc_num):
+            drops.append(self._drop_event())
+
+        price_data = self._price_for_date(
+            _price_data, self.date, self.hour)
+        for case in drops:
+            self.balance += price_data[case]
+
+        # Update date
+        self.date += dt.timedelta(days=7)
+        if self.hour + self.drift > 23:
+            self.date += dt.timedelta(days=1)
+            self.hour = (self.hour+self.drift) % 24
+        else:
+            self.hour += self.drift
+
+
 if __name__ == "__main__":
-    x = DropManager(_drop_pool, _release_dates, dt.date(2022, 7, 1))
-    x._update_drop_pool(x.date)
+    for i in range(10):
+        farm1 = Farm()
+        farm1.run_once()
+        print(farm1.balance)
