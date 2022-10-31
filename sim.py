@@ -5,8 +5,50 @@ import pandas as pd
 import random
 from progressbar import print_progress_bar
 
+# Constants
+_min_date = dt.date(2020, 1, 1)
+_max_date = dt.date(2030, 1, 1)
+_release_dates = {'Recoil Case': dt.date(2022, 7, 1),
+                  'Dreams & Nightmares Case': dt.date(2022, 1, 21)
+                  }
+_drop_pool = {'Recoil Case':  _max_date,
+              'Snakebite Case':  _max_date,
+              'Clutch Case':  _max_date,
+              'Fracture Case':  _max_date,
+              'Dreams & Nightmares Case':  _max_date,
+              'Prisma 2 Case': dt.date(2022, 7, 1),
+              'Danger Zone Case': dt.date(2022, 1, 18),
+              'CS20 Case':   _min_date,
+              'Prisma Case':   _min_date,
+              'Horizon Case':   _min_date,
+              'Spectrum 2 Case':   _min_date,
+              'Operation Hydra Case':   _min_date,
+              'Spectrum Case':   _min_date,
+              'Glove Case':   _min_date,
+              'Gamma Case':   _min_date,
+              'Gamma 2 Case':   _min_date,
+              'Chroma 3 Case':   _min_date,
+              'Revolver Case':   _min_date,
+              'Operation Wildfire Case':   _min_date,
+              'Shadow Case':   _min_date,
+              'Falchion Case':   _min_date,
+              'Chroma Case':   _min_date,
+              'Chroma 2 Case':   _min_date,
+              'Operation Vanguard Weapon Case':   _min_date,
+              'Operation Breakout Weapon Case':   _min_date,
+              'Huntsman Weapon Case':   _min_date,
+              'Winter Offensive Weapon Case':   _min_date,
+              'Operation Bravo Case':   _min_date,
+              'CS:GO Weapon Case 2':   _min_date,
+              'CS:GO Weapon Case 3':   _min_date,
+              'CS:GO Weapon Case':   _min_date,
+              'Sticker Capsule': _min_date,
+              'Sticker Capsule 2': _min_date,
+              'Community Sticker Capsule 1': _min_date
+              }
 
-def get_price_data(is_new: bool = False):
+
+def get_price_data(is_new: bool = True):
     """
     Get Steam price history for each item.
     If is_new == True, gets data from Steam servers and writes them
@@ -65,51 +107,6 @@ def get_price_data(is_new: bool = False):
             x.replace(",", ".")
         ) for x in price_data[case]['Price(USD)']]
     return price_data
-
-
-# Constants
-_min_date = dt.date(2020, 1, 1)
-_max_date = dt.date(2030, 1, 1)
-_release_dates = {'Recoil Case': dt.date(2022, 7, 1),
-                  'Dreams & Nightmares Case': dt.date(2022, 1, 21)
-                  }
-_drop_pool = {'Recoil Case':  _max_date,
-              'Snakebite Case':  _max_date,
-              'Clutch Case':  _max_date,
-              'Fracture Case':  _max_date,
-              'Dreams & Nightmares Case':  _max_date,
-              'Prisma 2 Case': dt.date(2022, 7, 1),
-              'Danger Zone Case': dt.date(2022, 1, 18),
-              'CS20 Case':   _min_date,
-              'Prisma Case':   _min_date,
-              'Horizon Case':   _min_date,
-              'Spectrum 2 Case':   _min_date,
-              'Operation Hydra Case':   _min_date,
-              'Spectrum Case':   _min_date,
-              'Glove Case':   _min_date,
-              'Gamma Case':   _min_date,
-              'Gamma 2 Case':   _min_date,
-              'Chroma 3 Case':   _min_date,
-              'Revolver Case':   _min_date,
-              'Operation Wildfire Case':   _min_date,
-              'Shadow Case':   _min_date,
-              'Falchion Case':   _min_date,
-              'Chroma Case':   _min_date,
-              'Chroma 2 Case':   _min_date,
-              'Operation Vanguard Weapon Case':   _min_date,
-              'Operation Breakout Weapon Case':   _min_date,
-              'Huntsman Weapon Case':   _min_date,
-              'Winter Offensive Weapon Case':   _min_date,
-              'Operation Bravo Case':   _min_date,
-              'CS:GO Weapon Case 2':   _min_date,
-              'CS:GO Weapon Case 3':   _min_date,
-              'CS:GO Weapon Case':   _min_date,
-              'Sticker Capsule': _min_date,
-              'Sticker Capsule 2': _min_date,
-              'Community Sticker Capsule 1': _min_date
-              }
-_newData = False
-_price_data = get_price_data(_newData)
 
 
 class DateError(Exception):
@@ -197,11 +194,11 @@ class DropManager():
 
 class Farm(Structure, DropManager):
     def __init__(self,
+                 price_data,
                  acc_num=100,
                  start_date=dt.date(2021, 6, 9),
                  start_bal=0,
-                 drift: int = 0,
-                 ):
+                 drift: int = 0):
         Structure.__init__(self,
                            acc_num,
                            start_date,
@@ -210,6 +207,7 @@ class Farm(Structure, DropManager):
                              _drop_pool,
                              _release_dates,
                              start_date)
+        self.price_data = price_data
         self.hour = 0
         # Ideal farm would run every 7 days. Real farm drifts a little
         # bit. drift lets you set by how many hours
@@ -239,7 +237,7 @@ class Farm(Structure, DropManager):
             drops.append(self._drop_event())
 
         price_data = self._price_for_date(
-            _price_data, self.date, self.hour)
+            self.price_data, self.date, self.hour)
         for case in drops:
             self.balance += price_data[case]
 
@@ -253,7 +251,8 @@ class Farm(Structure, DropManager):
 
 
 if __name__ == "__main__":
+    price_data = get_price_data(False)
     for i in range(10):
-        farm1 = Farm()
+        farm1 = Farm(price_data)
         farm1.run_once()
         print(farm1.balance)
