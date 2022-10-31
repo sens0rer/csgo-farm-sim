@@ -270,7 +270,6 @@ class Farm(Structure, DropManager):
 
 
 def get_deep_stats(stats,
-                   steam_irl=0.7,
                    acc_pr=15,
                    acc_num=100,
                    drift=0):
@@ -284,12 +283,13 @@ def get_deep_stats(stats,
     stats_new = stats.copy()
 
     stats_new["Profit"] = []
+    last_balance = 0
     for i, balance in enumerate(stats_new["Balance"]):
-        last_balance = balance
         if i == 0:
             stats_new["Profit"].append(balance)
         else:
             stats_new["Profit"].append(balance - last_balance)
+        last_balance = balance
 
     stats_new["Monthly profit"] = []
     for profit in stats_new["Profit"]:
@@ -297,7 +297,8 @@ def get_deep_stats(stats,
 
     stats_new["Time till moneyback"] = []
     for profit in stats_new["Monthly profit"]:
-        stats_new["Time till moneyback"].append(acc_num*acc_pr/profit)
+        stats_new["Time till moneyback"].append(
+            acc_num*acc_pr/profit)
 
     stats_new["Balance normalized"] = []
     for value in stats_new["Balance"]:
@@ -311,21 +312,33 @@ def get_deep_stats(stats,
     for value in stats_new["Monthly profit"]:
         stats_new["Monthly profit normalized"].append(value/acc_num)
 
-    stats_new["Time till moneyback normalized"] = []
-    for value in stats_new["Time till moneyback"]:
-        stats_new["Time till moneyback normalized"].append(
-            value/acc_num)
-
     return stats_new
 
 
-def plot(stats):
+def plot(stats, mode=0):
+    """
+    Modes:
+    0 - balance
+    1 - balance normalized
+    2 - profit of each run
+    3 - profit of each run normalized
+    4 - average monthly profit
+    5 - average monthly profit normalized
+    6 - time till you make your money back(in months)
+    """
+    modes = ["Balance",
+             "Balance normalized",
+             "Profit",
+             "Profit normalized",
+             "Monthly profit",
+             "Monthly profit normalized",
+             "Time till moneyback"]
     if type(stats) == dict:
         x = stats["Date"]
-        y = np.array(stats["Balance"])
+        y = np.array(stats[modes[mode]])
     else:
         x = stats[0]["Date"]
-        y = [stats[i]["Balance"] for i in range(len(stats))]
+        y = [stats[i][modes[mode]] for i in range(len(stats))]
         y = np.array(y)
 
     fig, ax = plt.subplots()
@@ -337,8 +350,13 @@ def plot(stats):
 if __name__ == "__main__":
     price_data = get_price_data(False)
     stats = []
-    for i in range(5):
-        farm1 = Farm(price_data, 1000)
-        stats.append(farm1.run_til_date(dt.date(2022, 10, 1)))
-        plot(stats[i])
-    plot(stats)
+    for i in range(1):
+        farm1 = Farm(price_data, 10000)
+        stats.append(get_deep_stats(
+            farm1.run_til_date(dt.date(2022, 10, 1)),
+            acc_pr=15,
+            acc_num=farm1.acc_num))
+        modes = [0, 3, 5, 6]
+        for mode in modes:
+            plot(stats[i], mode)
+    # plot(stats)
