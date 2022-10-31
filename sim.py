@@ -68,7 +68,7 @@ def get_price_data(is_new: bool = True):
             price_data[case] = df.to_dict()
             pricehistory.write_df_to_file(df, case)
             print_progress_bar(i + 1, l,
-                               prefix='Acquiring price data from Steam:\n',
+                               prefix='Acquiring price data from Steam:',
                                suffix='Complete', length=50)
 
             # Convert indexed dicts to lists
@@ -204,7 +204,8 @@ class Farm(Structure, DropManager):
                  start_date=dt.date(2021, 6, 9),
                  start_bal=0,
                  drift: int = 0,
-                 steam_to_irl=0.7):
+                 steam_to_irl=0.7,
+                 cases_to_sell=[]):
         Structure.__init__(self,
                            acc_num,
                            start_date,
@@ -221,6 +222,9 @@ class Farm(Structure, DropManager):
         # This coefficient lets you set how much cash you get for
         # 1 USD on steam
         self.steam_to_irl = steam_to_irl
+        # Cases that are sold instantly(to enable you to stash others)
+        self.insta_sell = cases_to_sell
+        self.stash = []
 
     def _price_for_date(self, price_data, date, hour=0):
         datetime = dt.datetime.combine(date, dt.time(hour, 0, 0))
@@ -233,7 +237,12 @@ class Farm(Structure, DropManager):
         dated_price_data = {}
         for case in price_data.keys():
             if case in self._active_pool or case in self._rare_pool:
-                date_index = price_data[case]["Date"].index(datetime)
+                try:
+                    date_index = price_data[case]["Date"].index(
+                        datetime)
+                except ValueError:
+                    date_index = price_data[case]["Date"].index(datetime
+                                                                + dt.timedelta(hours=7, minutes=0))
                 dated_price_data[case] = price_data[case]["Price(USD)"][date_index]
 
         return dated_price_data
@@ -248,7 +257,10 @@ class Farm(Structure, DropManager):
         price_data = self._price_for_date(
             self.price_data, self.date, self.hour)
         for case in drops:
-            self.balance += price_data[case] / self.steam_to_irl
+            if case in self.insta_sell or self.insta_sell == []:
+                self.balance += price_data[case] * self.steam_to_irl
+            elif self.insta_sell != [] and case not in self.insta_sell:
+                self.stash.append(case)
 
         # Update date
         self.date += dt.timedelta(days=7)
@@ -267,6 +279,13 @@ class Farm(Structure, DropManager):
             self.run_once()
             stats["Balance"].append(self.balance)
         return stats
+
+    def stash_value(self):
+        stash_value = 0
+        price_data = self._price_for_date(self.price_data, self.date)
+        for case in self.stash:
+            stash_value += price_data[case] * self.steam_to_irl
+        return stash_value
 
 
 def get_deep_stats(stats,
@@ -349,14 +368,19 @@ def plot(stats, mode=0):
 
 if __name__ == "__main__":
     price_data = get_price_data(False)
-    stats = []
-    for i in range(1):
-        farm1 = Farm(price_data, 10000)
-        stats.append(get_deep_stats(
-            farm1.run_til_date(dt.date(2022, 10, 1)),
-            acc_pr=15,
-            acc_num=farm1.acc_num))
-        modes = [0, 3, 5, 6]
-        for mode in modes:
-            plot(stats[i], mode)
-    # plot(stats)
+    farm1 = Farm(price_data,
+                 acc_num=5000,
+                 start_date=dt.date(2022, 7, 1),
+                 start_bal=0,
+                 drift=2,
+                 steam_to_irl=0.6,
+                 cases_to_sell=["Recoil Case", "Dreams & Nightmares Case"])
+    stats = get_deep_stats(
+        farm1.run_til_date(dt.date(2022, 10, 28)),
+        acc_pr=11.5,
+        acc_num=farm1.acc_num)
+    modes = [1, 3, 5, 6]
+    for mode in modes:
+        plot(stats, mode)
+    print(farm1.stash_value())
+    stash = farm1.stash
