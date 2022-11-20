@@ -204,8 +204,8 @@ class DropManager():
     """
 
     def __init__(self, drop_pool, release_dates, date):
-        self._rare_dates = drop_pool
-        self._release_dates = release_dates
+        self._rare_dates = drop_pool.copy()
+        self._release_dates = release_dates.copy()
         self._release_date_list = list(release_dates.values())
         self.date = date
         self._active_pool = []
@@ -287,7 +287,7 @@ class Farm(Structure, DropManager):
                              _rare_dates,
                              _release_dates,
                              start_date)
-        self.price_data = price_data
+        self.price_data = price_data.copy()
         self.hour = 0
         # Ideal farm would run every 7 days. Real farm drifts a little
         # bit. drift lets you set by how many hours
@@ -296,7 +296,7 @@ class Farm(Structure, DropManager):
         # 1 USD on steam
         self.steam_to_irl = steam_to_irl
         # Cases that are sold instantly(to enable you to stash others)
-        self.insta_sell = cases_to_sell
+        self.insta_sell = cases_to_sell.copy()
         self.stash = []
         # Time between cycles of farming
         # Better left same as default value for simulation accuracy
