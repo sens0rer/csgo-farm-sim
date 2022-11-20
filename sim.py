@@ -313,7 +313,19 @@ class Farm(Structure, DropManager):
         dated_price_data = {}
         for case in price_data.keys():
             if case in self._active_pool or case in self._rare_pool:
-                # Костиль
+                # TODO: fix this
+                # This is a dumb fix for a dumb problem. Which doesn't
+                # even fix it in some cases
+                # The problem is:
+                # We have steam prices for every single day at 1 am
+                # Except for the times that 1 am is somehow skipped and
+                # that breaks this code because it assumes it should
+                # grab a value corresponding to 1 am
+                # Since I'm not using different prices for the same
+                # day when available anyway, I should reformat dates from
+                # datetimes to dates and leave only one price value
+                # where there's multiple
+                # I should also try using a hashmap here
                 try:
                     date_index = price_data[case]["Date"].index(
                         datetime)
@@ -408,6 +420,20 @@ def get_deep_stats(stats,
     for value in stats_new["Monthly profit"]:
         stats_new["Monthly profit normalized"].append(value/acc_num)
 
+    # I'm sure this is not the most efficient way of doing things,
+    # but it's fine for this use case
+    # TODO: introduce some hashmap magic
+    stats_new["Real days till moneyback"] = []
+    for i, value1 in enumerate(stats_new["Balance normalized"]):
+        for j, value2 in enumerate(stats_new["Balance normalized"][i+1:]):
+            if value2 >= value1 + acc_pr:
+                days_to_moneyback = stats_new["Date"][i +
+                                                      1+j] - stats_new["Date"][i]
+                days_to_moneyback = days_to_moneyback.days
+                stats_new["Real days till moneyback"].append(
+                    days_to_moneyback)
+                break
+
     return stats_new
 
 
@@ -420,7 +446,10 @@ def plot(stats, mode=0):
     3 - profit of each run normalized
     4 - average monthly profit
     5 - average monthly profit normalized
-    6 - time till you make your money back(in months)
+    6 - instant approxiamation of time till you make your money back
+    (in months)
+    7 - real time till you make your money back
+    (in days)
     """
     modes = ["Balance",
              "Balance normalized",
@@ -428,12 +457,25 @@ def plot(stats, mode=0):
              "Profit normalized",
              "Monthly profit",
              "Monthly profit normalized",
-             "Time till moneyback"]
+             "Time till moneyback",
+             "Real days till moneyback"]
+    # I found myself not remembering what this does so here you go,
+    # future me:
+    # This check lets you plot multiple farms on one graph
+    # Basically, if stats is a dictionary, that means that we're
+    # plotting one farm. Alternatively, stats can be a list of
+    # dictionaries, so we need to deal with multiple farms
     if type(stats) == dict:
         x = stats["Date"]
+        # There are less dates for the 7th mode
+        if mode == 7:
+            x = x[0:len(stats[modes[mode]])]
         y = np.array(stats[modes[mode]])
     else:
         x = stats[0]["Date"]
+        # There are less dates for the 7th mode
+        if mode == 7:
+            x = x[0:len(stats[0][modes[mode]])]
         y = [stats[i][modes[mode]] for i in range(len(stats))]
         y = np.array(y)
 
@@ -453,12 +495,12 @@ if __name__ == "__main__":
                  steam_to_irl=0.6,
                  cases_to_sell=[],
                  delta=7)
-    stats = farm1.run_til_date(dt.date(2022, 11, 8))
+    stats = farm1.run_til_date(dt.date(2022, 11, 15))
     stats = get_deep_stats(stats,
                            acc_pr=11.5,
                            acc_num=farm1.acc_num,
                            drift=farm1.drift)
-    modes = [0, 1, 2, 3, 4, 5, 6]
+    modes = [0, 1, 2, 3, 4, 5, 6, 7]
     for mode in modes:
         plot(stats, mode)
     print(farm1.stash_value())
