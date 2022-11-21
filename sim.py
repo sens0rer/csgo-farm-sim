@@ -177,6 +177,12 @@ class DateError(Exception):
     """
 
 
+class PlotError(Exception):
+    """
+    Used for raising errors when using plotter
+    """
+
+
 class Structure():
     """
     Defines farm settings
@@ -422,22 +428,30 @@ def get_deep_stats(stats,
 
     # I'm sure this is not the most efficient way of doing things,
     # but it's fine for this use case
-    # TODO: introduce some hashmap magic
+    # TODO: introduce some hashmap magic?
     stats_new["Real days till moneyback"] = []
     for i, value1 in enumerate(stats_new["Balance normalized"]):
         for j, value2 in enumerate(stats_new["Balance normalized"][i+1:]):
             if value2 >= value1 + acc_pr:
                 days_to_moneyback = stats_new["Date"][i +
                                                       1+j] - stats_new["Date"][i]
-                days_to_moneyback = days_to_moneyback.days
+                days_to_moneyback = float(days_to_moneyback.days)
                 stats_new["Real days till moneyback"].append(
                     days_to_moneyback)
                 break
 
+    stats_new["Real days till moneyback(shifted)"] = {}
+    length = len(stats_new["Real days till moneyback"])
+    dates_and_values = zip(
+        stats_new["Date"][0:length], stats_new["Real days till moneyback"])
+    for date, value in dates_and_values:
+        new_date = date + dt.timedelta(days=value/2)
+        stats_new["Real days till moneyback(shifted)"][new_date] = value
+
     return stats_new
 
 
-def plot(stats, mode=0):
+def plot(stats, mode=0, scale=0):
     """
     Modes:
     0 - balance
@@ -446,10 +460,15 @@ def plot(stats, mode=0):
     3 - profit of each run normalized
     4 - average monthly profit
     5 - average monthly profit normalized
-    6 - instant approxiamation of time till you make your money back
+    6 - instant approximation of time till you make your money back
     (in months)
     7 - real time till you make your money back
     (in days)
+    8 - approximation of time till you make your money back(in days)
+    based on past and future data(basically a smooth version of 6th mode)
+    Scale:
+    0 - linear
+    1 - logarithmic
     """
     modes = ["Balance",
              "Balance normalized",
@@ -458,14 +477,25 @@ def plot(stats, mode=0):
              "Monthly profit",
              "Monthly profit normalized",
              "Time till moneyback",
-             "Real days till moneyback"]
+             "Real days till moneyback",
+             "Real days till moneyback(shifted)"]
     # I found myself not remembering what this does so here you go,
     # future me:
     # This check lets you plot multiple farms on one graph
     # Basically, if stats is a dictionary, that means that we're
     # plotting one farm. Alternatively, stats can be a list of
     # dictionaries, so we need to deal with multiple farms
-    if type(stats) == dict:
+
+    # 8th mode has it's own date range and needs to be handled differently
+    if mode == 8 and type(stats) == dict:
+        x = list(stats[modes[mode]].keys())
+        y = [stats[modes[mode]][date] for date in x]
+        y = np.array(y)
+    elif mode == 8:
+        exception = """Mode 8 only works for plotting stats of a single farm"""
+        raise PlotError(exception)
+
+    elif type(stats) == dict:
         x = stats["Date"]
         # There are less dates for the 7th mode
         if mode == 7:
@@ -478,6 +508,10 @@ def plot(stats, mode=0):
             x = x[0:len(stats[0][modes[mode]])]
         y = [stats[i][modes[mode]] for i in range(len(stats))]
         y = np.array(y)
+
+    if scale:
+        y += 1e-10
+        y = np.log(y)
 
     fig, ax = plt.subplots()
     ax.plot_date(x, y.T, marker='', linestyle='-')
@@ -500,8 +534,9 @@ if __name__ == "__main__":
                            acc_pr=11.5,
                            acc_num=farm1.acc_num,
                            drift=farm1.drift)
-    modes = [0, 1, 2, 3, 4, 5, 6, 7]
-    for mode in modes:
-        plot(stats, mode)
+    modes = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    scales = [1 for x in modes]
+    for mode, scale in zip(modes, scales):
+        plot(stats, mode, scale)
     print(farm1.stash_value())
     stash = farm1.stash
