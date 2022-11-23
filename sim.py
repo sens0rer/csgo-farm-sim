@@ -189,7 +189,7 @@ class Structure():
     """
 
     def __init__(self,
-                 acc_num=100,
+                 acc_num: int = 100,
                  start_date=dt.date(2021, 6, 9),
                  start_bal=0):
         if start_date < dt.date(2019, 10, 27):
@@ -278,7 +278,7 @@ class DropManager():
 class Farm(Structure, DropManager):
     def __init__(self,
                  price_data,
-                 acc_num=100,
+                 acc_num: int = 100,
                  start_date=dt.date(2021, 6, 9),
                  start_bal=0,
                  drift: int = 0,
@@ -383,10 +383,53 @@ class Farm(Structure, DropManager):
         return stash_value
 
 
+class FarmReinvest(Farm):
+    def __init__(self,
+                 price_data,
+                 acc_num: int = 100,
+                 acc_pr=11.5,
+                 reinvest_cycles=float('inf'),
+                 start_date=dt.date(2021, 6, 9),
+                 start_bal=0,
+                 drift: int = 0,
+                 steam_to_irl=0.7,
+                 cases_to_sell=[],
+                 delta: int = 7):
+        Farm.__init__(self,
+                      price_data,
+                      acc_num,
+                      start_date,
+                      start_bal,
+                      drift,
+                      steam_to_irl,
+                      cases_to_sell,
+                      delta)
+        # Reinvest every x cycles
+        # If set to infinity will not reinvest
+        self.reinvest_cycles = reinvest_cycles
+        self.cycle = 0
+        self.acc_num_stats = {"Date": [start_date],
+                              "Number of accounts": [acc_num]
+                              }
+        self.acc_price = acc_pr
+
+    def run_once(self):
+        Farm.run_once(self)
+        if not (self.cycle % self.reinvest_cycles):
+            new_accs = self.balance // self.acc_price
+            self.acc_num += new_accs
+            self.balance -= new_accs * self.acc_price
+            self.acc_num_stats["Date"].append(self.date)
+            self.acc_num_stats["Number of accounts"].append(
+                self.acc_num)
+        self.cycle += 1
+
+
 def get_deep_stats(stats,
                    acc_pr=15,
                    acc_num=100,
                    drift=0):
+    # TODO: update stat handing to account for reinvesting
     """
     Coefficients:
     acc_pr - account price in USD
@@ -452,6 +495,7 @@ def get_deep_stats(stats,
 
 
 def plot(stats, mode=0, scale=0):
+    # TODO: update plotter to account for reinvesting
     """
     Modes:
     0 - balance
@@ -466,6 +510,7 @@ def plot(stats, mode=0, scale=0):
     (in days)
     8 - approximation of time till you make your money back(in days)
     based on past and future data(basically a smooth version of 6th mode)
+
     Scale:
     0 - linear
     1 - logarithmic
@@ -481,10 +526,11 @@ def plot(stats, mode=0, scale=0):
              "Real days till moneyback(shifted)"]
     # I found myself not remembering what this does so here you go,
     # future me:
-    # This check lets you plot multiple farms on one graph
+    # The type check lets you plot multiple farms on one graph
     # Basically, if stats is a dictionary, that means that we're
     # plotting one farm. Alternatively, stats can be a list of
-    # dictionaries, so we need to deal with multiple farms
+    # dictionaries, so we need to deal with multiple functions
+    # on a single plot.
 
     # 8th mode has it's own date range and needs to be handled differently
     if mode == 8 and type(stats) == dict:
