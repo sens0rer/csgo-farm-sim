@@ -407,7 +407,7 @@ class FarmReinvest(Farm):
         # Reinvest every x cycles
         # If set to infinity will not reinvest
         self.reinvest_cycles = reinvest_cycles
-        self.cycle = 0
+        self.cycle = 1
         self.acc_num_stats = {"Date": [start_date],
                               "Number of accounts": [acc_num]
                               }
@@ -417,11 +417,11 @@ class FarmReinvest(Farm):
         Farm.run_once(self)
         if not (self.cycle % self.reinvest_cycles):
             new_accs = self.balance // self.acc_price
-            self.acc_num += new_accs
+            self.acc_num += int(new_accs)
             self.balance -= new_accs * self.acc_price
             self.acc_num_stats["Date"].append(self.date)
             self.acc_num_stats["Number of accounts"].append(
-                self.acc_num)
+                float(self.acc_num))
         self.cycle += 1
 
 
@@ -429,7 +429,6 @@ def get_deep_stats(stats,
                    acc_pr=15,
                    acc_num=100,
                    drift=0):
-    # TODO: update stat handing to account for reinvesting
     """
     Coefficients:
     acc_pr - account price in USD
@@ -495,7 +494,6 @@ def get_deep_stats(stats,
 
 
 def plot(stats, mode=0, scale=0):
-    # TODO: update plotter to account for reinvesting
     """
     Modes:
     0 - balance
@@ -510,6 +508,7 @@ def plot(stats, mode=0, scale=0):
     (in days)
     8 - approximation of time till you make your money back(in days)
     based on past and future data(basically a smooth version of 6th mode)
+    9 - number of accounts(for self-investing farms)
 
     Scale:
     0 - linear
@@ -523,7 +522,8 @@ def plot(stats, mode=0, scale=0):
              "Monthly profit normalized",
              "Time till moneyback",
              "Real days till moneyback",
-             "Real days till moneyback(shifted)"]
+             "Real days till moneyback(shifted)",
+             "Number of accounts"]
     # I found myself not remembering what this does so here you go,
     # future me:
     # The type check lets you plot multiple farms on one graph
@@ -567,21 +567,32 @@ def plot(stats, mode=0, scale=0):
 
 if __name__ == "__main__":
     price_data = get_price_data(False)
-    farm1 = Farm(price_data,
-                 acc_num=10000,
-                 start_date=dt.date(2019, 10, 27),
-                 start_bal=0,
-                 drift=0,
-                 steam_to_irl=0.6,
-                 cases_to_sell=[],
-                 delta=7)
-    stats = farm1.run_til_date(dt.date(2022, 11, 15))
-    stats = get_deep_stats(stats,
-                           acc_pr=11.5,
-                           acc_num=farm1.acc_num,
-                           drift=farm1.drift)
-    modes = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-    scales = [1 for x in modes]
+    # farm1 = Farm(price_data,
+    #              acc_num=10000,
+    #              start_date=dt.date(2019, 10, 27),
+    #              start_bal=0,
+    #              drift=0,
+    #              steam_to_irl=0.6,
+    #              cases_to_sell=[],
+    #              delta=7)
+    farm1 = FarmReinvest(price_data,
+                         acc_num=10000,
+                         acc_pr=11.5,
+                         reinvest_cycles=1,
+                         start_date=dt.date(2021, 5, 1),
+                         start_bal=0,
+                         drift=2,
+                         steam_to_irl=0.7,
+                         cases_to_sell=[],
+                         delta=7)
+    stats_full = farm1.run_til_date(dt.date(2022, 11, 15))
+    stats_full = get_deep_stats(stats_full,
+                                acc_pr=11.5,
+                                acc_num=farm1.acc_num,
+                                drift=farm1.drift)
+    stats = farm1.acc_num_stats
+    modes = [9]
+    scales = [0 for x in modes]
     for mode, scale in zip(modes, scales):
         plot(stats, mode, scale)
     print(farm1.stash_value())
