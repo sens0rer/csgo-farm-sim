@@ -424,11 +424,25 @@ class FarmReinvest(Farm):
                 float(self.acc_num))
         self.cycle += 1
 
+    def get_stats(self):
+        self.acc_num_stats['Time till x2'] = []
+        for i, value1 in enumerate(self.acc_num_stats["Number of accounts"]):
+            for j, value2 in enumerate(self.acc_num_stats["Number of accounts"][i+1:]):
+                if value2 >= 2*value1:
+                    days_to_x2 = self.acc_num_stats["Date"][i +
+                                                            1 + j] - self.acc_num_stats["Date"][i]
+                    days_to_x2 = float(days_to_x2.days)
+                    self.acc_num_stats['Time till x2'].append(
+                        days_to_x2)
+                    break
+        return self.acc_num_stats
+
 
 def get_deep_stats(stats,
                    acc_pr=15,
                    acc_num=100,
-                   drift=0):
+                   drift=0,
+                   reinvest=False):
     """
     Coefficients:
     acc_pr - account price in USD
@@ -509,6 +523,7 @@ def plot(stats, mode=0, scale=0):
     8 - approximation of time till you make your money back(in days)
     based on past and future data(basically a smooth version of 6th mode)
     9 - number of accounts(for self-investing farms)
+    10 - real time till x2(for self-investing farms)
 
     Scale:
     0 - linear
@@ -523,7 +538,8 @@ def plot(stats, mode=0, scale=0):
              "Time till moneyback",
              "Real days till moneyback",
              "Real days till moneyback(shifted)",
-             "Number of accounts"]
+             "Number of accounts",
+             "Time till x2"]
     # I found myself not remembering what this does so here you go,
     # future me:
     # The type check lets you plot multiple farms on one graph
@@ -543,15 +559,11 @@ def plot(stats, mode=0, scale=0):
 
     elif type(stats) == dict:
         x = stats["Date"]
-        # There are less dates for the 7th mode
-        if mode == 7:
-            x = x[0:len(stats[modes[mode]])]
+        x = x[0:len(stats[modes[mode]])]
         y = np.array(stats[modes[mode]])
     else:
         x = stats[0]["Date"]
-        # There are less dates for the 7th mode
-        if mode == 7:
-            x = x[0:len(stats[0][modes[mode]])]
+        x = x[0:len(stats[0][modes[mode]])]
         y = [stats[i][modes[mode]] for i in range(len(stats))]
         y = np.array(y)
 
@@ -579,19 +591,20 @@ if __name__ == "__main__":
                          acc_num=10000,
                          acc_pr=11.5,
                          reinvest_cycles=1,
-                         start_date=dt.date(2021, 5, 1),
+                         start_date=dt.date(2022, 2, 1),
                          start_bal=0,
                          drift=2,
                          steam_to_irl=0.7,
-                         cases_to_sell=[],
+                         cases_to_sell=[
+                             'Fracture Case', 'Snakebite Case'],
                          delta=7)
     stats_full = farm1.run_til_date(dt.date(2022, 11, 15))
-    stats_full = get_deep_stats(stats_full,
-                                acc_pr=11.5,
-                                acc_num=farm1.acc_num,
-                                drift=farm1.drift)
-    stats = farm1.acc_num_stats
-    modes = [9]
+    # stats_full = get_deep_stats(stats_full,
+    #                             acc_pr=11.5,
+    #                             acc_num=farm1.acc_num,
+    #                             drift=farm1.drift)
+    stats = farm1.get_stats()
+    modes = [9, 10]
     scales = [0 for x in modes]
     for mode, scale in zip(modes, scales):
         plot(stats, mode, scale)
