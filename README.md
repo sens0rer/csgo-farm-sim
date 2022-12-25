@@ -27,7 +27,7 @@ Loads price history for cases.
  import sim
  price_data = sim.get_price_data(False) # loads existing price history from the directory
 price_data = sim.get_price_data(True) # gets new price history from steam and saves it to your directory
-price_date = sim.get_price_data(True) # same as the line above
+price_data = sim.get_price_data() # same as the line above
 ```
 
 After that you want to initialize your farm
