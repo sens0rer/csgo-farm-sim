@@ -46,7 +46,8 @@ _release_dates = {'Recoil Case': dt.date(2022, 7, 1),
                   'CS:GO Weapon Case':   dt.date(2013, 8, 14),
                   'Sticker Capsule': _min_release_date,
                   'Sticker Capsule 2': _min_release_date,
-                  'Community Sticker Capsule 1': _min_release_date
+                  'Community Sticker Capsule 1': _min_release_date,
+                  'Revolution Case': dt.date(2023, 2, 10)
                   }
 
 _non_prime_start_dates = {'Gamma Case': _min_non_prime_date,
@@ -75,7 +76,7 @@ _non_prime_list = list(_non_prime_start_dates.keys())
 
 _rare_dates = {'Recoil Case':  _max_date,
                'Snakebite Case':  _max_date,
-               'Clutch Case':  _max_date,
+               'Clutch Case':  dt.date(2023, 2, 10),
                'Fracture Case':  _max_date,
                'Dreams & Nightmares Case':  _max_date,
                'Prisma 2 Case': dt.date(2022, 7, 1),
@@ -106,7 +107,8 @@ _rare_dates = {'Recoil Case':  _max_date,
                'CS:GO Weapon Case':   _min_rare_date,
                'Sticker Capsule': _min_rare_date,
                'Sticker Capsule 2': _min_rare_date,
-               'Community Sticker Capsule 1': _min_rare_date
+               'Community Sticker Capsule 1': _min_rare_date,
+               'Revolution Case': _max_date
                }
 
 
@@ -124,7 +126,7 @@ def get_price_data(is_new: bool = True):
     for i, case in enumerate(case_list):
         if is_new:
             df = pricehistory.get_df_for_item(case)
-            sleep(15)
+            sleep(10)
             price_data[case] = df.to_dict()
             pricehistory.write_df_to_file(df, case)
             print_progress_bar(i + 1, l,
@@ -336,8 +338,10 @@ class Farm(Structure, DropManager):
                     date_index = price_data[case]["Date"].index(
                         datetime)
                 except ValueError:
+
                     date_index = price_data[case]["Date"].index(datetime
-                                                                + dt.timedelta(hours=8, minutes=0))
+                                                                + dt.timedelta(hours=9, minutes=0))
+
                 dated_price_data[case] = price_data[case]["Price(USD)"][date_index]
 
         return dated_price_data
@@ -467,8 +471,11 @@ def get_deep_stats(stats,
 
     stats_new["Time till moneyback"] = []
     for profit in stats_new["Monthly profit"]:
-        stats_new["Time till moneyback"].append(
-            acc_num*acc_pr/profit)
+        if profit != 0:
+            stats_new["Time till moneyback"].append(
+                acc_num*acc_pr/profit)
+        else:
+            stats_new["Time till moneyback"].append(0)
 
     stats_new["Balance normalized"] = []
     for value in stats_new["Balance"]:
@@ -575,10 +582,17 @@ def plot(stats, mode=0, scale=0):
     ax.plot_date(x, y.T, marker='', linestyle='-')
     fig.autofmt_xdate()
     plt.show()
+# TODO: refactoring
+# Goals:
+# -Separating different tasks between classes/files
+# -More complatible stat modes and plotting modes
+# -Hashmaps
+# -Datetimes to dates where possible
+# -Better documentation
 
 
 if __name__ == "__main__":
-    price_data = get_price_data(False)
+    price_data = get_price_data(is_new=True)
     # farm1 = Farm(price_data,
     #              acc_num=10000,
     #              start_date=dt.date(2019, 10, 27),
@@ -590,23 +604,22 @@ if __name__ == "__main__":
     farm1 = FarmReinvest(price_data,
                          acc_num=10000,
                          acc_pr=11.5,
-                         reinvest_cycles=1,
-                         start_date=dt.date(2022, 2, 1),
+                         reinvest_cycles=float("inf"),
+                         start_date=dt.date(2021, 3, 3),
                          start_bal=0,
                          drift=2,
-                         steam_to_irl=0.7,
-                         cases_to_sell=[
-                             'Fracture Case', 'Snakebite Case'],
+                         steam_to_irl=0.6,
+                         cases_to_sell=[],
                          delta=7)
-    stats_full = farm1.run_til_date(dt.date(2022, 11, 15))
-    # stats_full = get_deep_stats(stats_full,
-    #                             acc_pr=11.5,
-    #                             acc_num=farm1.acc_num,
-    #                             drift=farm1.drift)
+    stats_full = farm1.run_til_date(dt.date(2023, 3, 2))
+    stats_full = get_deep_stats(stats_full,
+                                acc_pr=11.5,
+                                acc_num=farm1.acc_num,
+                                drift=farm1.drift)
     stats = farm1.get_stats()
-    modes = [9, 10]
+    modes = [0, 1, 2, 3, 4, 5, 6, 7, 8]
     scales = [0 for x in modes]
     for mode, scale in zip(modes, scales):
-        plot(stats, mode, scale)
+        plot(stats_full, mode, scale)
     print(farm1.stash_value())
     stash = farm1.stash
