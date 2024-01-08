@@ -1,4 +1,4 @@
-# README IS UNDER CONSTRUCTION
+# The project is abandoned due to changes to how CS cases are dropped
 # CS:GO Case Farm Simulator
 This package allows you to simulate a CS:GO Case Farm.
 
